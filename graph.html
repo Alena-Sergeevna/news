@@ -1,0 +1,1130 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Схема дидактических единиц - МДК.03.01</title>
+    <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f5f5f5;
+            padding: 20px;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .header h1 {
+            font-size: 24px;
+            color: #333;
+            margin-bottom: 10px;
+        }
+        
+        #svg-container {
+            background: white;
+            border: 2px solid #666;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            width: 100%;
+            overflow: auto;
+            min-height: 400px;
+            position: relative;
+        }
+        
+        .controls-panel {
+            position: absolute;
+            top: 30px;
+            left: 30px;
+            background: white;
+            border: 2px solid #666;
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            z-index: 100;
+            min-width: 220px;
+        }
+        
+        .legend {
+            margin-top: 15px;
+        }
+        
+        .legend-title {
+            font-weight: bold;
+            font-size: 14px;
+            margin-bottom: 10px;
+            color: #333;
+        }
+        
+        .legend-section {
+            margin-bottom: 12px;
+        }
+        
+        .legend-section-title {
+            font-size: 12px;
+            font-weight: bold;
+            color: #555;
+            margin-bottom: 6px;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 5px;
+            font-size: 11px;
+        }
+        
+        .legend-color {
+            width: 20px;
+            height: 15px;
+            border-radius: 3px;
+            margin-right: 8px;
+            border: 1px solid #666;
+            flex-shrink: 0;
+        }
+        
+        .legend-link {
+            display: flex;
+            align-items: center;
+            margin-bottom: 5px;
+            font-size: 11px;
+        }
+        
+        .legend-line {
+            width: 30px;
+            height: 2px;
+            margin-right: 8px;
+            position: relative;
+            flex-shrink: 0;
+        }
+        
+        .legend-line::after {
+            content: '';
+            position: absolute;
+            right: -5px;
+            top: -3px;
+            width: 0;
+            height: 0;
+            border-left: 6px solid;
+            border-top: 4px solid transparent;
+            border-bottom: 4px solid transparent;
+        }
+        
+        .control-button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            transition: background 0.3s;
+        }
+        
+        .control-button:hover {
+            background: #5568d3;
+        }
+        
+        .control-button:active {
+            background: #4457c2;
+        }
+        
+        #svg-container svg {
+            display: block;
+            max-width: 100%;
+            height: auto;
+        }
+        
+        .node {
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .node:hover {
+            filter: brightness(1.1);
+        }
+        
+        .node-rect {
+            fill: #e0e0e0;
+            stroke: #424242;
+            stroke-width: 2;
+            rx: 4;
+            transition: all 0.3s;
+        }
+        
+        .node-rect.de-know {
+            fill: #9C27B0;
+            stroke: #7B1FA2;
+        }
+        
+        .node-rect.de-skill {
+            fill: #2196F3;
+            stroke: #1976D2;
+        }
+        
+        .node-rect.de-practice {
+            fill: #4CAF50;
+            stroke: #388E3C;
+        }
+        
+        .node-rect.de-pk {
+            fill: #FF9800;
+            stroke: #F57C00;
+        }
+        
+        .node-rect.highlighted {
+            fill: #FFD700 !important;
+            stroke: #FF6B00 !important;
+            stroke-width: 3;
+            filter: drop-shadow(0 0 8px rgba(255, 215, 0, 0.8));
+        }
+        
+        .node-rect.dimmed {
+            opacity: 0.3;
+        }
+        
+        .node-text {
+            font-size: 12px;
+            fill: #333;
+            text-anchor: middle;
+            pointer-events: none;
+            transition: all 0.3s;
+        }
+        
+        .node-text.dimmed {
+            opacity: 0.3;
+        }
+        
+        .link {
+            fill: none;
+            stroke: #666;
+            stroke-width: 1.5;
+            marker-end: url(#arrowhead);
+            transition: all 0.3s;
+        }
+        
+        .link.highlighted {
+            stroke-width: 3;
+            opacity: 1;
+        }
+        
+        .link.dimmed {
+            opacity: 0.1;
+        }
+        
+        .link-base {
+            stroke: #2196F3;
+        }
+        
+        .link-develops {
+            stroke: #4CAF50;
+        }
+        
+        .link-agrees {
+            stroke: #FF9800;
+        }
+        
+        .link-pk {
+            stroke: #9C27B0;
+            stroke-width: 2;
+            stroke-dasharray: 5,5;
+        }
+        
+        .link-label {
+            font-size: 11px;
+            fill: #333;
+            text-anchor: middle;
+            pointer-events: none;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        
+        .link-label.dimmed {
+            opacity: 0;
+            pointer-events: none;
+        }
+        
+        .link-label-bg {
+            fill: white;
+            stroke: #666;
+            stroke-width: 1;
+            opacity: 0.95;
+            transition: all 0.3s;
+        }
+        
+        .link-label-bg.highlighted {
+            fill: #FFD700;
+            stroke: #FF6B00;
+            stroke-width: 2;
+            opacity: 1;
+            filter: drop-shadow(0 0 4px rgba(255, 215, 0, 0.6));
+        }
+        
+        .link-label-bg.dimmed {
+            opacity: 0;
+            pointer-events: none;
+        }
+        
+        .link-label.highlighted {
+            fill: #000;
+            font-weight: bold;
+        }
+        
+        .controls-panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: white;
+            border: 2px solid #666;
+            border-radius: 8px;
+            padding: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            z-index: 100;
+        }
+        
+        .control-button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            transition: background 0.3s;
+        }
+        
+        .control-button:hover {
+            background: #5568d3;
+        }
+        
+        .control-button:active {
+            background: #4457c2;
+        }
+        
+        #svg-container {
+            position: relative;
+        }
+        
+        .level-label {
+            font-size: 14px;
+            font-weight: bold;
+            fill: #555;
+            text-anchor: middle;
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+        
+        .modal-content {
+            background-color: white;
+            margin: 5% auto;
+            padding: 30px;
+            border-radius: 8px;
+            width: 80%;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+        
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        
+        .close:hover {
+            color: #000;
+        }
+        
+        .info-section {
+            margin: 15px 0;
+        }
+        
+        .info-section h3 {
+            color: #667eea;
+            margin-bottom: 8px;
+        }
+        
+        .connections-list {
+            list-style: none;
+            padding-left: 0;
+        }
+        
+        .connections-list li {
+            padding: 8px;
+            margin: 5px 0;
+            background: #f5f5f5;
+            border-radius: 4px;
+            border-left: 3px solid #667eea;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            margin-right: 5px;
+            margin-bottom: 5px;
+        }
+        
+        .badge-know { background: #9C27B0; color: white; }
+        .badge-skill { background: #2196F3; color: white; }
+        .badge-practice { background: #4CAF50; color: white; }
+        .badge-both { background: #FF9800; color: white; }
+        .badge-pk { background: #F44336; color: white; }
+        .badge-mdk { background: #9C27B0; color: white; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>МДК.03.01 Проектирование и разработка веб-приложений</h1>
+        <p>Визуализация дидактических единиц и профессиональных компетенций</p>
+        <p style="font-size: 14px; color: #666; margin-top: 10px;">
+            Один клик на ДЕ - подсветка связей. Двойной клик - подробная информация. Клик вне схемы - сброс подсветки.<br>
+            <strong>Масштабирование:</strong> Колесико мыши или жесты на тачпаде. Перетаскивание для перемещения схемы.
+        </p>
+    </div>
+    
+    <div id="svg-container">
+        <div class="controls-panel">
+            <button class="control-button" onclick="resetHighlight()">Сбросить выделение</button>
+            
+            <div class="legend">
+                <div class="legend-title">Легенда</div>
+                
+                <div class="legend-section">
+                    <div class="legend-section-title">Типы дидактических единиц:</div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #9C27B0;"></div>
+                        <span>Знать</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #2196F3;"></div>
+                        <span>Уметь</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #4CAF50;"></div>
+                        <span>Иметь практический опыт</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #FF9800;"></div>
+                        <span>ПК</span>
+                    </div>
+                </div>
+                
+                <div class="legend-section">
+                    <div class="legend-section-title">Типы связей:</div>
+                    <div class="legend-link">
+                        <div class="legend-line" style="background-color: #2196F3; border-color: #2196F3;"></div>
+                        <span>База</span>
+                    </div>
+                    <div class="legend-link">
+                        <div class="legend-line" style="background-color: #4CAF50; border-color: #4CAF50;"></div>
+                        <span>Развивает</span>
+                    </div>
+                    <div class="legend-link">
+                        <div class="legend-line" style="background-color: #9C27B0; border-color: #9C27B0;"></div>
+                        <span>Связь с ПК</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Модальное окно для информации -->
+    <div id="infoModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <div id="modalBody"></div>
+        </div>
+    </div>
+    
+    <script>
+        // Маппинг типов
+        const typeMap = {
+            'know': 'Знать',
+            'skill': 'Уметь',
+            'practice': 'Иметь практический опыт',
+            'both': 'Знать и уметь',
+            'pk': 'ПК'
+        };
+        
+        const levelOrder = ['Знать', 'Уметь', 'Иметь практический опыт', 'ПК'];
+        const levelYPositions = {};
+        
+        let nodesData = [];
+        let linksData = [];
+        let pkData = {};
+        let svg, g;
+        let selectedNode = null;
+        
+        // Размеры
+        const nodeWidth = 120;
+        const nodeHeight = 50;
+        const levelSpacing = 180;
+        const nodeSpacing = 50; // Увеличено расстояние между ДЕ одного уровня
+        const margin = { top: 80, right: 50, bottom: 50, left: 150 };
+        
+        let svgWidth = 0;
+        let svgHeight = 0;
+        
+        // Инициализация SVG после загрузки d3
+        function initSVG(width, height) {
+            if (typeof d3 === 'undefined') {
+                console.error('d3.js не загружен');
+                return false;
+            }
+            
+            // Очищаем предыдущий SVG если есть
+            d3.select('#svg-container').select('svg').remove();
+            
+            // Создание SVG с вычисленными размерами
+            svg = d3.select('#svg-container')
+                .append('svg')
+                .attr('width', '100%')
+                .attr('height', height)
+                .attr('viewBox', `0 0 ${width} ${height}`)
+                .attr('preserveAspectRatio', 'xMidYMid meet');
+            
+            // Определение стрелки
+            svg.append('defs').append('marker')
+                .attr('id', 'arrowhead')
+                .attr('viewBox', '0 0 10 10')
+                .attr('refX', 8)
+                .attr('refY', 5)
+                .attr('markerWidth', 6)
+                .attr('markerHeight', 6)
+                .attr('orient', 'auto')
+                .append('path')
+                .attr('d', 'M 0 0 L 10 5 L 0 10 z')
+                .attr('fill', '#666');
+            
+            // Создаем группу для трансформаций
+            g = svg.append('g');
+            
+            // Настраиваем зум
+            const zoom = d3.zoom()
+                .scaleExtent([0.3, 3]) // Минимальный и максимальный масштаб
+                .on('zoom', function(event) {
+                    g.attr('transform', event.transform);
+                });
+            
+            svg.call(zoom);
+            
+            return true;
+        }
+        
+        // Загрузка данных
+        async function loadData() {
+            try {
+                const response = await fetch('de_data.json');
+                const data = await response.json();
+                
+                // Сохраняем данные о ПК
+                if (data.pks) {
+                    data.pks.forEach(pk => {
+                        pkData[pk.id] = pk;
+                    });
+                }
+                
+                // Подготавливаем узлы
+                const allNodes = [];
+                
+                // Добавляем ПК
+                data.pks.forEach((pk, index) => {
+                    allNodes.push({
+                        id: pk.id,
+                        label: pk.label,
+                        title: pk.title,
+                        description: pk.description,
+                        type: 'pk',
+                        level: 'ПК',
+                        pk: null
+                    });
+                });
+                
+                // Добавляем ДЕ
+                data.nodes.forEach(node => {
+                    allNodes.push({
+                        id: `de-${node.id}`,
+                        label: node.label,
+                        title: node.title,
+                        description: node.description,
+                        type: node.type,
+                        level: typeMap[node.type],
+                        pk: node.pk
+                    });
+                });
+                
+                // Группируем по уровням
+                const nodesByLevel = {};
+                levelOrder.forEach(level => {
+                    nodesByLevel[level] = [];
+                });
+                
+                allNodes.forEach(node => {
+                    if (nodesByLevel[node.level]) {
+                        nodesByLevel[node.level].push(node);
+                    }
+                });
+                
+                // Вычисляем позиции для каждого уровня
+                let currentY = margin.top;
+                levelOrder.forEach((level, levelIndex) => {
+                    levelYPositions[level] = currentY;
+                    currentY += levelSpacing;
+                });
+                
+                // Вычисляем максимальную ширину для всех уровней
+                let maxLevelWidth = 0;
+                levelOrder.forEach(level => {
+                    const nodes = nodesByLevel[level];
+                    if (nodes.length > 0) {
+                        const levelWidth = nodes.length * (nodeWidth + nodeSpacing) - nodeSpacing;
+                        if (levelWidth > maxLevelWidth) {
+                            maxLevelWidth = levelWidth;
+                        }
+                    }
+                });
+                
+                // Вычисляем размеры SVG
+                svgWidth = Math.max(maxLevelWidth + margin.left + margin.right, 1200);
+                svgHeight = currentY + nodeHeight + margin.bottom;
+                
+                // Инициализируем SVG с правильными размерами
+                if (!initSVG(svgWidth, svgHeight)) {
+                    return;
+                }
+                
+                // Вычисляем позиции узлов
+                levelOrder.forEach(level => {
+                    const nodes = nodesByLevel[level];
+                    if (nodes.length === 0) return;
+                    
+                    const totalWidth = nodes.length * (nodeWidth + nodeSpacing) - nodeSpacing;
+                    const startX = margin.left + (svgWidth - margin.left - margin.right - totalWidth) / 2;
+                    
+                    nodes.forEach((node, index) => {
+                        node.x = startX + index * (nodeWidth + nodeSpacing) + nodeWidth / 2;
+                        node.y = levelYPositions[level] + nodeHeight / 2;
+                        nodesData.push(node);
+                    });
+                });
+                
+                // Подготавливаем связи (исключаем тип "agrees")
+                data.edges.forEach(edge => {
+                    // Пропускаем связи типа "agrees"
+                    if (edge.type === 'agrees') return;
+                    
+                    const fromNode = nodesData.find(n => n.id === `de-${edge.from}`);
+                    const toNode = nodesData.find(n => n.id === `de-${edge.to}`);
+                    
+                    if (fromNode && toNode) {
+                        linksData.push({
+                            source: fromNode,
+                            target: toNode,
+                            type: edge.type
+                        });
+                    }
+                });
+                
+                // Добавляем связи от ДЕ к ПК (только для "Иметь практический опыт")
+                // Остальные ДЕ связаны с ПК через иерархию: Знать -> Уметь -> Иметь практический опыт -> ПК
+                nodesData.forEach(node => {
+                    if (node.type === 'practice' && node.pk) {
+                        // Только ДЕ типа "practice" (Иметь практический опыт) связаны напрямую с ПК
+                        const pkNode = nodesData.find(n => n.label === node.pk);
+                        if (pkNode) {
+                            linksData.push({
+                                source: node,
+                                target: pkNode,
+                                type: 'pk-connection'
+                            });
+                        }
+                    }
+                });
+                
+                // Рисуем схему
+                drawDiagram();
+            } catch (error) {
+                console.error('Ошибка загрузки данных:', error);
+                alert('Не удалось загрузить данные из de_data.json');
+            }
+        }
+        
+        function drawDiagram() {
+            // Очищаем предыдущее содержимое
+            g.selectAll('*').remove();
+            
+            // Добавляем метки уровней
+            levelOrder.forEach(level => {
+                g.append('text')
+                    .attr('class', 'level-label')
+                    .attr('x', margin.left / 2)
+                    .attr('y', levelYPositions[level] + nodeHeight / 2)
+                    .text(level);
+            });
+            
+            // Рисуем связи ПЕРВЫМИ (чтобы они были под блоками)
+            const links = g.selectAll('.link-group')
+                .data(linksData)
+                .enter()
+                .append('g')
+                .attr('class', 'link-group')
+                .lower(); // Перемещаем вниз по z-order
+            
+            const linkPaths = links.append('path')
+                .attr('class', d => {
+                    if (d.type === 'base') return 'link link-base';
+                    if (d.type === 'develops') return 'link link-develops';
+                    if (d.type === 'agrees') return 'link link-agrees';
+                    if (d.type === 'pk-connection') return 'link link-pk';
+                    return 'link';
+                })
+                .attr('d', d => {
+                    // Стрелки начинаются от нижнего края блока источника (с небольшим отступом)
+                    const sourceY = d.source.y + nodeHeight / 2 + 2;
+                    // Стрелки заканчиваются у верхнего края блока цели (с небольшим отступом, чтобы не перекрывать блок)
+                    const targetY = d.target.y - nodeHeight / 2 - 2;
+                    const midY = (sourceY + targetY) / 2;
+                    const dx = Math.abs(d.target.x - d.source.x);
+                    const dy = Math.abs(targetY - sourceY);
+                    
+                    // Если элементы на одном уровне (горизонтальная связь)
+                    if (dy < 20) {
+                        // Горизонтальная линия с изгибом вверх (под блоками)
+                        const offsetY = Math.min(sourceY, targetY) - 30;
+                        return `M ${d.source.x} ${sourceY}
+                                L ${d.source.x} ${offsetY}
+                                L ${d.target.x} ${offsetY}
+                                L ${d.target.x} ${targetY}`;
+                    } else {
+                        // Вертикально-горизонтальная линия
+                        // Стрелка идет от нижнего края источника, затем горизонтально, затем к верхнему краю цели
+                        return `M ${d.source.x} ${sourceY}
+                                L ${d.source.x} ${midY}
+                                L ${d.target.x} ${midY}
+                                L ${d.target.x} ${targetY}`;
+                    }
+                });
+            
+            // Добавляем подписи к связям (только для связей между ДЕ, не для ПК)
+            const linkLabels = links.filter(d => d.type !== 'pk-connection');
+            
+            // Добавляем фон для текста (размещаем на линии связи, но не на блоках)
+            linkLabels.append('rect')
+                .attr('class', 'link-label-bg')
+                .attr('x', d => {
+                    const midX = (d.source.x + d.target.x) / 2;
+                    return midX - 35;
+                })
+                .attr('y', d => {
+                    const sourceY = d.source.y + nodeHeight / 2 + 2;
+                    const targetY = d.target.y - nodeHeight / 2 - 2;
+                    const dy = Math.abs(targetY - sourceY);
+                    let midY;
+                    if (dy < 20) {
+                        // Горизонтальная связь - размещаем на изогнутой линии (под блоками)
+                        midY = Math.min(sourceY, targetY) - 30;
+                    } else {
+                        // Вертикальная связь - размещаем на горизонтальной части линии
+                        midY = (sourceY + targetY) / 2;
+                    }
+                    return midY - 10;
+                })
+                .attr('width', 70)
+                .attr('height', 20)
+                .attr('rx', 4);
+            
+            // Добавляем текст (размещаем на линии связи, но не на блоках)
+            linkLabels.append('text')
+                .attr('class', 'link-label')
+                .attr('x', d => {
+                    const midX = (d.source.x + d.target.x) / 2;
+                    return midX;
+                })
+                .attr('y', d => {
+                    const sourceY = d.source.y + nodeHeight / 2 + 2;
+                    const targetY = d.target.y - nodeHeight / 2 - 2;
+                    const dy = Math.abs(targetY - sourceY);
+                    let midY;
+                    if (dy < 20) {
+                        // Горизонтальная связь - размещаем на изогнутой линии (под блоками)
+                        midY = Math.min(sourceY, targetY) - 30;
+                    } else {
+                        // Вертикальная связь - размещаем на горизонтальной части линии
+                        midY = (sourceY + targetY) / 2;
+                    }
+                    return midY;
+                })
+                .attr('dy', '0.35em')
+                .text(d => {
+                    if (d.type === 'base') return 'База';
+                    if (d.type === 'develops') return 'Развивает';
+                    if (d.type === 'agrees') return 'Согласуется';
+                    return '';
+                });
+            
+            // Рисуем узлы ПОСЛЕ связей (чтобы они были поверх стрелок)
+            const nodes = g.selectAll('.node')
+                .data(nodesData)
+                .enter()
+                .append('g')
+                .attr('class', 'node')
+                .attr('transform', d => `translate(${d.x},${d.y})`)
+                .raise() // Перемещаем вверх по z-order (поверх связей)
+                .on('click', (event, d) => {
+                    event.stopPropagation();
+                    // Один клик - только подсветка
+                    highlightNode(d);
+                })
+                .on('dblclick', (event, d) => {
+                    event.stopPropagation();
+                    // Двойной клик - открытие модального окна
+                    showInfo(d);
+                });
+            
+            // Прямоугольники для узлов
+            nodes.append('rect')
+                .attr('class', d => {
+                    let baseClass = 'node-rect';
+                    if (d.type === 'know') return baseClass + ' de-know';
+                    if (d.type === 'skill') return baseClass + ' de-skill';
+                    if (d.type === 'practice') return baseClass + ' de-practice';
+                    if (d.type === 'pk') return baseClass + ' de-pk';
+                    return baseClass;
+                })
+                .attr('width', nodeWidth)
+                .attr('height', nodeHeight)
+                .attr('x', -nodeWidth / 2)
+                .attr('y', -nodeHeight / 2);
+            
+            // Текст в узлах
+            nodes.append('text')
+                .attr('class', 'node-text')
+                .attr('dy', '0.35em')
+                .attr('fill', d => {
+                    // Белый текст для цветных блоков
+                    if (d.type === 'know' || d.type === 'skill' || d.type === 'practice' || d.type === 'pk') {
+                        return 'white';
+                    }
+                    return '#333';
+                })
+                .text(d => d.label);
+            
+            // Обработчик клика вне узлов для сброса подсветки
+            // Используем более точную проверку, чтобы не конфликтовать с зумом
+            g.on('click', function(event) {
+                // Проверяем, что клик был не по узлу
+                if (event.target.classList.contains('node-rect') || 
+                    event.target.classList.contains('node-text') ||
+                    event.target.closest('.node')) {
+                    return;
+                }
+                resetHighlight();
+                selectedNode = null;
+            });
+            
+            // Обновляем размер SVG если нужно
+            const maxY = d3.max(nodesData, d => d.y) + nodeHeight / 2 + margin.bottom;
+            if (maxY > svgHeight) {
+                svgHeight = maxY;
+                svg.attr('height', svgHeight)
+                   .attr('viewBox', `0 0 ${svgWidth} ${svgHeight}`);
+            }
+        }
+        
+        function highlightNode(node) {
+            selectedNode = node;
+            
+            // Находим все связанные узлы
+            const connectedNodeIds = new Set();
+            connectedNodeIds.add(node.id);
+            
+            // Если выделен ПК, находим все связанные ДЕ через иерархию
+            if (node.type === 'pk') {
+                // Находим все practice ДЕ, связанные с этим ПК
+                const practiceDEs = [];
+                linksData.forEach(link => {
+                    if (link.type === 'pk-connection' && link.target.id === node.id) {
+                        practiceDEs.push(link.source);
+                        connectedNodeIds.add(link.source.id);
+                    }
+                });
+                
+                // Для каждого practice ДЕ находим все связанные ДЕ (skill, know)
+                // Используем обход графа для нахождения всех связанных узлов
+                const nodesToProcess = [...practiceDEs];
+                const processedNodes = new Set();
+                
+                while (nodesToProcess.length > 0) {
+                    const currentDE = nodesToProcess.shift();
+                    if (processedNodes.has(currentDE.id)) continue;
+                    processedNodes.add(currentDE.id);
+                    
+                    // Находим все связи, где currentDE является источником или целью
+                    linksData.forEach(link => {
+                        if (link.type !== 'pk-connection') {
+                            if (link.source.id === currentDE.id) {
+                                if (!processedNodes.has(link.target.id)) {
+                                    connectedNodeIds.add(link.target.id);
+                                    const targetNode = nodesData.find(n => n.id === link.target.id);
+                                    if (targetNode) {
+                                        nodesToProcess.push(targetNode);
+                                    }
+                                }
+                            }
+                            if (link.target.id === currentDE.id) {
+                                if (!processedNodes.has(link.source.id)) {
+                                    connectedNodeIds.add(link.source.id);
+                                    const sourceNode = nodesData.find(n => n.id === link.source.id);
+                                    if (sourceNode) {
+                                        nodesToProcess.push(sourceNode);
+                                    }
+                                }
+                            }
+                        }
+                    });
+                }
+            } else {
+                // Для обычных ДЕ находим связи, связанные с выбранным узлом
+                linksData.forEach(link => {
+                    if (link.source.id === node.id || link.target.id === node.id) {
+                        connectedNodeIds.add(link.source.id);
+                        connectedNodeIds.add(link.target.id);
+                    }
+                });
+            }
+            
+            // Обновляем визуализацию
+            g.selectAll('.node').each(function(d) {
+                const nodeGroup = d3.select(this);
+                const rect = nodeGroup.select('.node-rect');
+                const text = nodeGroup.select('.node-text');
+                
+                if (connectedNodeIds.has(d.id)) {
+                    if (d.id === node.id) {
+                        rect.classed('highlighted', true).classed('dimmed', false);
+                    } else {
+                        rect.classed('highlighted', true).classed('dimmed', false);
+                    }
+                    text.classed('dimmed', false);
+                } else {
+                    rect.classed('highlighted', false).classed('dimmed', true);
+                    text.classed('dimmed', true);
+                }
+            });
+            
+            // Обновляем связи
+            g.selectAll('.link-group').each(function(d) {
+                const linkGroup = d3.select(this);
+                const path = linkGroup.select('path');
+                const label = linkGroup.select('.link-label');
+                const labelBg = linkGroup.select('.link-label-bg');
+                
+                // Связи от practice к ПК всегда остаются видимыми
+                const isPracticeToPK = d.type === 'pk-connection' && d.source.type === 'practice';
+                
+                if (connectedNodeIds.has(d.source.id) && connectedNodeIds.has(d.target.id)) {
+                    // Выделенная связь
+                    path.classed('highlighted', true).classed('dimmed', false);
+                    label.classed('highlighted', true).classed('dimmed', false);
+                    if (labelBg.size() > 0) {
+                        labelBg.classed('highlighted', true).classed('dimmed', false);
+                    }
+                } else if (isPracticeToPK) {
+                    // Связи от practice к ПК остаются видимыми (не затемняются)
+                    path.classed('highlighted', false).classed('dimmed', false);
+                    label.classed('highlighted', false).classed('dimmed', true);
+                    if (labelBg.size() > 0) {
+                        labelBg.classed('highlighted', false).classed('dimmed', true);
+                    }
+                } else {
+                    // Невыделенная связь - затемняем и скрываем подписи
+                    path.classed('highlighted', false).classed('dimmed', true);
+                    label.classed('highlighted', false).classed('dimmed', true);
+                    if (labelBg.size() > 0) {
+                        labelBg.classed('highlighted', false).classed('dimmed', true);
+                    }
+                }
+            });
+            
+            // Узлы всегда должны быть поверх всех связей
+            g.selectAll('.node').raise();
+        }
+        
+        function resetHighlight() {
+            if (!g) return;
+            
+            g.selectAll('.node-rect')
+                .classed('highlighted', false)
+                .classed('dimmed', false);
+            
+            g.selectAll('.node-text')
+                .classed('dimmed', false);
+            
+            g.selectAll('.link-group path')
+                .classed('highlighted', false)
+                .classed('dimmed', false);
+            
+            g.selectAll('.link-label')
+                .classed('highlighted', false)
+                .classed('dimmed', false);
+            
+            g.selectAll('.link-label-bg')
+                .classed('highlighted', false)
+                .classed('dimmed', false);
+            
+            selectedNode = null;
+        }
+        
+        // Делаем функцию доступной глобально для кнопки
+        window.resetHighlight = resetHighlight;
+        
+        function showInfo(data) {
+            const modal = document.getElementById('infoModal');
+            const modalBody = document.getElementById('modalBody');
+            
+            let html = '';
+            
+            if (data.type === 'pk') {
+                // Находим все ДЕ типа "practice", связанные с этим ПК
+                const relatedDEs = nodesData.filter(n => n.pk === data.label && n.type === 'practice');
+                
+                html = `
+                    <h2>${data.label}</h2>
+                    <div class="info-section">
+                        <p>
+                            <span class="badge badge-pk">${data.label}</span>
+                            <span class="badge badge-mdk">МДК.03.01</span>
+                        </p>
+                    </div>
+                    <div class="info-section">
+                        <h3>Название:</h3>
+                        <p><strong>${data.title}</strong></p>
+                    </div>
+                    <div class="info-section">
+                        <h3>Описание:</h3>
+                        <p>${data.description}</p>
+                    </div>
+                    <div class="info-section">
+                        <h3>Связанные дидактические единицы (${relatedDEs.length}):</h3>
+                        <ul class="connections-list">
+                            ${relatedDEs.map(de => `<li>${de.label}: ${de.title}</li>`).join('')}
+                        </ul>
+                    </div>
+                `;
+            } else {
+                const typeClass = data.type === 'know' ? 'know' : 
+                                 data.type === 'skill' ? 'skill' : 
+                                 data.type === 'practice' ? 'practice' : 'both';
+                
+                // Находим все связи для этого ДЕ
+                const incomingLinks = linksData.filter(l => l.target.id === data.id && l.type !== 'pk-connection');
+                const outgoingLinks = linksData.filter(l => l.source.id === data.id && l.type !== 'pk-connection');
+                
+                const baseFor = outgoingLinks.filter(l => l.type === 'base').map(l => l.target.label);
+                const develops = outgoingLinks.filter(l => l.type === 'develops').map(l => l.target.label);
+                const reliesOn = incomingLinks.filter(l => l.type === 'base').map(l => l.source.label);
+                
+                html = `
+                    <h2>${data.label}</h2>
+                    <div class="info-section">
+                        <p>
+                            <span class="badge badge-${typeClass}">${typeMap[data.type]}</span>
+                            <span class="badge badge-pk">${data.pk}</span>
+                            <span class="badge badge-mdk">МДК.03.01</span>
+                        </p>
+                    </div>
+                    <div class="info-section">
+                        <h3>Название:</h3>
+                        <p><strong>${data.title}</strong></p>
+                    </div>
+                    <div class="info-section">
+                        <h3>Описание:</h3>
+                        <p>${data.description}</p>
+                    </div>
+                    <div class="info-section">
+                        <h3>Связи с другими ДЕ:</h3>
+                        <ul class="connections-list">
+                            ${reliesOn.length > 0 ? `<li><strong>Опирается на:</strong> ${reliesOn.join(', ')}</li>` : ''}
+                            ${baseFor.length > 0 ? `<li><strong>База для:</strong> ${baseFor.join(', ')}</li>` : ''}
+                            ${develops.length > 0 ? `<li><strong>Развивает:</strong> ${develops.join(', ')}</li>` : ''}
+                        </ul>
+                    </div>
+                `;
+            }
+            
+            modalBody.innerHTML = html;
+            modal.style.display = 'block';
+        }
+        
+        // Закрытие модального окна
+        const modal = document.getElementById('infoModal');
+        const closeBtn = document.getElementsByClassName('close')[0];
+        
+        closeBtn.onclick = function() {
+            modal.style.display = 'none';
+            resetHighlight();
+            selectedNode = null;
+        };
+        
+        window.onclick = function(event) {
+            if (event.target === modal) {
+                modal.style.display = 'none';
+                resetHighlight();
+                selectedNode = null;
+            }
+        };
+        
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') {
+                modal.style.display = 'none';
+                resetHighlight();
+                selectedNode = null;
+            }
+        });
+        
+        // Загружаем данные при загрузке страницы
+        window.addEventListener('DOMContentLoaded', function() {
+            // Проверяем загрузку d3.js
+            if (typeof d3 === 'undefined') {
+                // Пробуем альтернативный CDN
+                const script = document.createElement('script');
+                script.src = 'https://unpkg.com/d3@7/dist/d3.min.js';
+                script.onload = function() {
+                    loadData();
+                };
+                script.onerror = function() {
+                    alert('Не удалось загрузить библиотеку d3.js. Проверьте подключение к интернету.');
+                };
+                document.head.appendChild(script);
+            } else {
+                loadData();
+            }
+        });
+    </script>
+</body>
+</html>
