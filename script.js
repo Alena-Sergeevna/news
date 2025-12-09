@@ -327,12 +327,13 @@ function loadAllMdks() {
         // Размещаем узлы внутри рамки МДК
         let currentY = boxY + mdkHeaderHeight + mdkBoxPadding + nodeHeight / 2;
         
-        // Размещаем ДЕ по типам вертикально
+        // Размещаем ДЕ по типам вертикально с правильным выравниванием
         deTypeOrder.forEach(type => {
             const deNodes = deByType[type];
             if (deNodes.length > 0) {
                 const typeWidth = deNodes.length * (nodeWidth + nodeSpacing) - nodeSpacing;
-                const startX = boxX + mdkBoxPadding + (boxWidth - mdkBoxPadding * 2 - typeWidth) / 2;
+                // Центрируем по всей ширине рамки
+                const startX = boxX + (boxWidth - typeWidth) / 2;
                 
                 deNodes.forEach((node, index) => {
                     node.x = startX + index * (nodeWidth + nodeSpacing) + nodeWidth / 2;
@@ -344,9 +345,10 @@ function loadAllMdks() {
             }
         });
         
-        // Размещаем ПК внизу рамки
+        // Размещаем ПК внизу рамки с правильным выравниванием
         if (pkCount > 0) {
-            const pkStartX = boxX + mdkBoxPadding + (boxWidth - mdkBoxPadding * 2 - pkWidth) / 2;
+            // Центрируем ПК по всей ширине рамки
+            const pkStartX = boxX + (boxWidth - pkWidth) / 2;
             mdkNodes.pk.forEach((node, index) => {
                 node.x = pkStartX + index * (nodeWidth + nodeSpacing) + nodeWidth / 2;
                 node.y = currentY;
@@ -360,7 +362,7 @@ function loadAllMdks() {
         }
     });
     
-    // Размещаем общие ПК между рамками соответствующих МДК
+    // Размещаем общие ПК между рамками соответствующих МДК на том же уровне, что и обычные ПК
     Object.keys(nodesByMdk).forEach(mdkId => {
         const sharedPks = nodesByMdk[mdkId].sharedPk;
         sharedPks.forEach(sharedPk => {
@@ -374,8 +376,42 @@ function loadAllMdks() {
                     const lastBox = boxPositions[boxPositions.length - 1];
                     const centerX = (firstBox.x + lastBox.x + lastBox.width) / 2;
                     
+                    // Находим Y-позицию ПК из первой рамки, чтобы общий ПК был на том же уровне
+                    let pkY = null;
+                    const firstMdkId = sharedPk.sharedMdkIds[0];
+                    const firstMdkNodes = nodesByMdk[firstMdkId];
+                    if (firstMdkNodes && firstMdkNodes.pk.length > 0) {
+                        // Берем Y-позицию первого ПК из первой рамки
+                        const firstPk = firstMdkNodes.pk[0];
+                        const firstPkNode = nodesData.find(n => n.id === firstPk.id);
+                        if (firstPkNode && firstPkNode.y) {
+                            pkY = firstPkNode.y;
+                        }
+                    }
+                    
+                    // Если не нашли позицию ПК, вычисляем её как в обычных рамках
+                    if (!pkY) {
+                        const firstBoxData = mdkBoxes[firstMdkId];
+                        if (firstBoxData) {
+                            // Вычисляем Y-позицию ПК: заголовок + отступ + все уровни ДЕ + отступ + ПК
+                            let calculatedY = firstBoxData.y + mdkHeaderHeight + mdkBoxPadding + nodeHeight / 2;
+                            const firstMdkNodes = nodesByMdk[firstMdkId];
+                            if (firstMdkNodes) {
+                                deTypeOrder.forEach(type => {
+                                    if (firstMdkNodes.de.filter(n => n.level === type).length > 0) {
+                                        calculatedY += nodeHeight + deTypeSpacing;
+                                    }
+                                });
+                            }
+                            pkY = calculatedY;
+                        } else {
+                            // Fallback: используем старую логику
+                            pkY = margin.top + maxBoxHeight - nodeHeight / 2;
+                        }
+                    }
+                    
                     sharedPk.x = centerX;
-                    sharedPk.y = margin.top + maxBoxHeight - nodeHeight / 2;
+                    sharedPk.y = pkY;
                     nodesData.push(sharedPk);
                 }
             }
@@ -926,12 +962,18 @@ function highlightNode(node) {
     const connectedNodeIds = new Set();
     connectedNodeIds.add(node.id);
     
-    // Если выделен ПК, находим только напрямую связанные practice ДЕ
+    // Если выделен ПК, находим все ДЕ, связанные с этим ПК
     if (node.type === 'pk') {
-        // Находим только practice ДЕ, которые напрямую связаны с этим ПК
+        // Находим все ДЕ (know, skill, practice), у которых поле pk совпадает с label этого ПК
+        nodesData.forEach(deNode => {
+            if (deNode.pk === node.label) {
+                connectedNodeIds.add(deNode.id);
+            }
+        });
+        
+        // Также находим practice ДЕ через связи pk-connection (на случай, если есть прямые связи)
         linksData.forEach(link => {
             if (link.type === 'pk-connection' && link.target.id === node.id && !link.isExternal) {
-                // Добавляем только сам practice ДЕ, без поиска всех связанных с ним ДЕ
                 connectedNodeIds.add(link.source.id);
             }
         });
@@ -944,26 +986,40 @@ function highlightNode(node) {
             }
         });
         
-        // Если выделена ДЕ, также выделяем связанный ПК (из того же МДК)
+        // Если выделена ДЕ, также выделяем связанный ПК
         if (node.pk) {
-            const pkNode = nodesData.find(n => n.type === 'pk' && n.label === node.pk && n.mdkId === node.mdkId);
+            // Сначала ищем общий ПК (относящийся к нескольким МДК)
+            let pkNode = nodesData.find(n => n.type === 'pk' && n.label === node.pk && n.isShared);
+            
+            // Если общий ПК не найден, ищем ПК в том же МДК
+            if (!pkNode) {
+                pkNode = nodesData.find(n => n.type === 'pk' && n.label === node.pk && n.mdkId === node.mdkId);
+            }
+            
             if (pkNode) {
                 connectedNodeIds.add(pkNode.id);
             }
         }
         
-        // Находим все practice ДЕ среди связанных узлов и добавляем их ПК
-        const practiceNodes = [];
+        // Находим все ДЕ среди связанных узлов и добавляем их ПК
+        const allConnectedNodes = [];
         connectedNodeIds.forEach(nodeId => {
             const connectedNode = nodesData.find(n => n.id === nodeId);
-            if (connectedNode && connectedNode.type === 'practice' && connectedNode.pk) {
-                practiceNodes.push(connectedNode);
+            if (connectedNode && connectedNode.pk) {
+                allConnectedNodes.push(connectedNode);
             }
         });
         
-        // Добавляем ПК для всех найденных practice ДЕ
-        practiceNodes.forEach(practiceNode => {
-            const pkNode = nodesData.find(n => n.type === 'pk' && n.label === practiceNode.pk && n.mdkId === practiceNode.mdkId);
+        // Добавляем ПК для всех найденных ДЕ
+        allConnectedNodes.forEach(deNode => {
+            // Сначала ищем общий ПК
+            let pkNode = nodesData.find(n => n.type === 'pk' && n.label === deNode.pk && n.isShared);
+            
+            // Если общий ПК не найден, ищем ПК в том же МДК
+            if (!pkNode) {
+                pkNode = nodesData.find(n => n.type === 'pk' && n.label === deNode.pk && n.mdkId === deNode.mdkId);
+            }
+            
             if (pkNode) {
                 connectedNodeIds.add(pkNode.id);
             }
